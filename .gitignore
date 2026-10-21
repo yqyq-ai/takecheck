@@ -36,3 +36,6 @@ takecheck-selftest-*/
 
 # Generated demo reports (rebuild with the commands in docs/README.md).
 docs/demo-*.html
+
+# comfy-cli artifact from comfy node publish.
+comfyui/node.zip
