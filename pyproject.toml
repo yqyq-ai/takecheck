@@ -39,10 +39,11 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# Keep pytest's scratch dirs inside the ignored cache dir: on some Windows sandboxes the
-# system temp directory is not writable by Python, and pytest would otherwise drop
-# `pytest-of-*` into the repository root.
-addopts = "--basetemp=.pytest_cache/tmp"
+# Keep pytest's scratch dirs out of the repository root: on some Windows sandboxes the
+# system temp directory is not writable by Python, so pytest would otherwise drop a
+# `pytest-of-*` directory next to the sources. A bare relative path works because its
+# parent (the project root) always exists.
+addopts = "--basetemp=.tmp"
 
 [tool.ruff]
 line-length = 100
