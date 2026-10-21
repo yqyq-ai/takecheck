@@ -22,6 +22,9 @@ can keep sampling while a previous take is being checked.
 Search for **TakeCheck** in *Manager → Install Custom Nodes*, install, restart
 ComfyUI.
 
+Published as [`comfyui-takecheck`](https://registry.comfy.org/nodes/comfyui-takecheck);
+`takecheck` itself is installed automatically as a dependency.
+
 ### Manually
 
 ```bash
