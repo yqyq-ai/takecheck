@@ -1,5 +1,7 @@
 # takecheck
 
+[![CI](https://github.com/yqyq-ai/takecheck/actions/workflows/ci.yml/badge.svg)](https://github.com/yqyq-ai/takecheck/actions/workflows/ci.yml)
+
 **pytest for AI-generated video.** Turn “is this take usable?” into an executable spec and a CI gate.
 
 > **Status: v0.0.1 — skeleton.** Spec parsing, ffprobe compliance checks, CLI and self-tests are in.
