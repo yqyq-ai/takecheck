@@ -52,3 +52,9 @@ jobs:
 
       - name: Build wheel
         run: pip wheel --no-deps -w dist .
+
+      # The ComfyUI node needs torch, which is not installed here, so it is
+      # compiled rather than imported. That still catches syntax errors and
+      # anything ruff cannot see.
+      - name: Compile the ComfyUI node
+        run: python -m py_compile comfyui/TakeCheck.py comfyui/__init__.py

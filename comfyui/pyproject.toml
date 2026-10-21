@@ -1,0 +1,28 @@
+[project]
+name = "comfyui-takecheck"
+version = "0.1.0"
+description = "Run takecheck's acceptance checks on a generated take: frozen frames, duplicate frames, blank frames, flicker, motion, subtitle residue and audio. CPU only."
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = ["takecheck>=0.1.0"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Topic :: Multimedia :: Video",
+]
+
+[project.urls]
+Repository = "https://github.com/yqyq-ai/takecheck"
+Homepage = "https://github.com/yqyq-ai/takecheck"
+"Bug Tracker" = "https://github.com/yqyq-ai/takecheck/issues"
+
+[tool.comfy]
+# Required by the Comfy Registry. The id must match the publisher created at
+# https://registry.comfy.org; it cannot be changed after the first publish
+# because it becomes part of the node's URL.
+PublisherId = "yqyq-ai"
+DisplayName = "TakeCheck - video acceptance"
+Icon = ""
+Banner = ""
+requires-comfyui = ">=0.3.0"

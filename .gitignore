@@ -32,3 +32,4 @@ Thumbs.db
 # Scratch dirs: selftest falls back here when the system temp is not writable.
 .takecheck-selftest/
 takecheck-selftest-*/
+.pytest-scratch/

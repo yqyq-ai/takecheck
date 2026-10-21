@@ -1,0 +1,16 @@
+name: comfy-take
+# Default spec used by the ComfyUI node when you do not point it elsewhere.
+# Copy this next to your node and edit the thresholds for your pipeline.
+expect:
+  # Leave duration/fps/frames out: the node builds the clip from an IMAGE batch,
+  # so the encoder decides those. Set them only if you also check files on disk.
+  audio: optional
+  # Subtitle detection needs the bottom of the frame to be readable; keep it on
+  # unless your shots legitimately contain text in the lower third.
+  subtitles: forbidden
+  frozen_max_ms: 200
+  black_max_frames: 0
+  flicker_max: 0.35
+  # Calibrated on takecheck's fixtures: a moving clip ~0.009, a still one ~0.000.
+  # Lower this for deliberately slow shots.
+  motion_min: 0.002

@@ -117,12 +117,28 @@ Three design choices worth knowing:
 
 - [x] v0.0.1 — spec format, ffprobe compliance check, CLI, `takecheck selftest`
 - [x] v0.1.0 — frozen / duplicate / blank / flicker / motion / subtitle / audio, HTML report, on PyPI
+- [x] ComfyUI node — drop it after a sampler, branch on `pass`
 - [ ] v0.2.0 — calibration against accepted/rejected takes, head/tail continuity
 - [ ] v0.3.0 — pipeline lint (custom-node provenance, model hash pinning)
 - [ ] v0.4.0 — pluggable VLM judge
-- [ ] v0.2.0 — calibration against accepted/rejected takes, head/tail continuity
-- [ ] v0.3.0 — pipeline lint (custom-node provenance, model hash pinning)
-- [ ] v0.4.0 — pluggable VLM judge
+
+## ComfyUI
+
+`comfyui/` holds a node that runs these checks on the `IMAGE` batch you just
+generated. It reuses this package — no check logic is duplicated — and runs on
+the CPU while your GPU keeps sampling.
+
+![Subtitle residue: a clean take passes, the same shot with burned-in subtitles fails](docs/subtitle-residue.gif)
+
+```bash
+cmd /c mklink /J "<ComfyUI>\custom_nodes\ComfyUI-TakeCheck" "<repo>\comfyui"
+"<ComfyUI>/../python/python.exe" -m pip install takecheck
+```
+
+Restart ComfyUI; the node appears under **video/validation → TakeCheck**.
+Outputs are `pass` (BOOLEAN), `verdict`, `report` (path) and `detail` (the
+failing checks in one line). See [`comfyui/README.md`](comfyui/README.md) for the
+spec options, and run `python comfyui/TakeCheck.py` to self-test without ComfyUI.
 
 ## Test media
 

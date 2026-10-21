@@ -43,7 +43,11 @@ testpaths = ["tests"]
 # system temp directory is not writable by Python, so pytest would otherwise drop a
 # `pytest-of-*` directory next to the sources. A bare relative path works because its
 # parent (the project root) always exists.
-addopts = "--basetemp=.tmp"
+#
+# This directory is pytest's alone: it is wiped at the start of every run, so do not
+# keep anything else in it. Use `.tmp/` for scratch work instead -- it is git-ignored
+# and never touched by the test suite.
+addopts = "--basetemp=.pytest-scratch"
 
 [tool.ruff]
 line-length = 100
