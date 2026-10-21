@@ -66,6 +66,20 @@ Exit codes: `0` pass, `1` fail, `2` bad spec / unreadable file.
 - [ ] v0.3.0 — pipeline lint (custom-node provenance, model hash pinning)
 - [ ] v0.4.0 — pluggable VLM judge
 
+## Test media
+
+`testmedia/synthetic/` holds seven tiny clips that each reproduce exactly one defect — frozen frames,
+duplicate frames, blank frames, flicker, missing audio, burned-in subtitles — plus `good.mp4` as the
+control that must always pass. Rebuild them with:
+
+```bash
+python scripts/make_testmedia.py
+```
+
+The script also verifies each clip against its expected profile (duration, frame count, audio) and
+runs in CI, so the fixtures cannot silently rot. Real footage never goes in the repository:
+`testmedia/real/` is git-ignored.
+
 ## Development
 
 ```bash

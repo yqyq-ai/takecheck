@@ -25,6 +25,9 @@ jobs:
       - name: Install package
         run: pip install -e ".[dev]"
 
+      - name: Rebuild synthetic test media
+        run: python scripts/make_testmedia.py --dest "${RUNNER_TEMP}/testmedia"
+
       - name: Lint
         run: ruff check src tests
 

@@ -20,8 +20,10 @@ report.json
 takecheck.lock.yml
 out/
 
-# 本地素材：真实片子绝不提交（体积大且涉及隐私）
-素材/
+# 真实片子：绝不提交（体积大且涉及隐私）。
+# 合成素材在 testmedia/synthetic/，那是要提交的。
+testmedia/real/*
+!testmedia/real/.gitkeep
 
 # OS
 .DS_Store

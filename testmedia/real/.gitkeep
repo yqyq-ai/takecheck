@@ -1,0 +1,2 @@
+# 真实片子放这里，绝不提交（见 .gitignore）。
+# 合成素材在 ../synthetic/，由 scripts/make_testmedia.py 生成。
