@@ -1,0 +1,17 @@
+name: h3-ep12-shot03
+# Optional: bind the spec to one file. `takecheck check` takes the path on the CLI anyway.
+video: out/shot03.mp4
+expect:
+  duration: 5.0
+  fps: 24
+  frames: 121
+  resolution: 1280x720
+  audio: required
+  subtitles: forbidden   # no burned-in subtitle residue in the bottom band
+  frozen_max_ms: 200
+  black_max_frames: 0
+  flicker_max: 0.35
+  motion_min: 0.15
+judges:
+  - mechanical
+  # - vlm: { backend: llama.cpp, model: qwen3.8-27b }

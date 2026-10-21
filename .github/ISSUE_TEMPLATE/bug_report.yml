@@ -1,0 +1,44 @@
+name: Bug report
+description: A clip that takecheck judged wrongly (false positive or false negative)
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A failing clip is the most useful report. Please describe what the check said and what you expected.
+        Do **not** upload footage you do not have the rights to redistribute.
+  - type: input
+    id: version
+    attributes:
+      label: takecheck version
+      description: Output of `takecheck --version`
+      placeholder: takecheck 0.0.1
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: OS, Python version, ffmpeg version
+      placeholder: Windows 11, Python 3.14.5, ffmpeg 9.0.1
+    validations:
+      required: true
+  - type: textarea
+    id: spec
+    attributes:
+      label: takes.yml (redact paths if needed)
+      render: yaml
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect, and what happened?
+      placeholder: Expected PASS on this clip, got FAIL with "frozen 312ms at 00:01.04" — but the motion is intentional.
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Anything else
+      description: Clip properties (duration, fps, resolution), whether you can share a short sample.

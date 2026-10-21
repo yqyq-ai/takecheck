@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "takecheck"
+version = "0.0.1"
+description = "pytest for AI-generated video: turn 'is this take usable?' into an executable spec and a CI gate."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "yqyq-ai" }]
+keywords = ["video", "qa", "comfyui", "generative-ai", "ci"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Multimedia :: Video",
+  "Topic :: Software Development :: Quality Assurance",
+]
+dependencies = ["PyYAML>=6.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.5"]
+
+[project.scripts]
+takecheck = "takecheck.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/yqyq-ai/takecheck"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Keep pytest's scratch dirs inside the ignored cache dir: on some Windows sandboxes the
+# system temp directory is not writable by Python, and pytest would otherwise drop
+# `pytest-of-*` into the repository root.
+addopts = "--basetemp=.pytest_cache/tmp"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Test / tooling
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# takecheck artifacts
+report.html
+report.json
+takecheck.lock.yml
+out/
+
+# OS
+.DS_Store
+Thumbs.db
