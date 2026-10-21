@@ -1,0 +1,80 @@
+name: Release
+
+# Publishes to PyPI when a version tag is pushed, using Trusted Publishing
+# (OIDC) instead of an API token. PyPI trusts this repository and this workflow
+# file by name, so both must match the publisher configured on pyproject.org:
+#
+#   Owner             yqyq-ai
+#   Repository        takecheck
+#   Workflow          release.yml
+#   Environment       pypi
+#
+# There is no secret to leak: GitHub mints a short-lived OIDC token per run.
+
+on:
+  push:
+    tags: ["v*"]
+  # Allows publishing from the Actions tab without pushing a tag.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build distributions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install --upgrade build
+          python -m build
+
+      - name: Check the distributions
+        run: |
+          python -m pip install --upgrade twine
+          python -m twine check dist/*
+
+      # Guard against publishing a version that does not match the tag.
+      - name: Verify version matches the tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version="$(python -c "import tomllib,pathlib;print(tomllib.loads(pathlib.Path('pyproject.toml').read_text(encoding='utf-8'))['project']['version'])")"
+          echo "tag=$tag pyproject=$version"
+          if [ "$tag" != "$version" ]; then
+            echo "tag $tag does not match version $version" >&2
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    # The environment name must match the Trusted Publisher configuration.
+    environment:
+      name: pypi
+      url: https://pypi.org/p/takecheck
+    permissions:
+      # Required for OIDC: lets the runner request a short-lived token that
+      # proves which repository and workflow this job runs in.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
