@@ -20,6 +20,9 @@ report.json
 takecheck.lock.yml
 out/
 
+# 本地素材：真实片子绝不提交（体积大且涉及隐私）
+素材/
+
 # OS
 .DS_Store
 Thumbs.db
