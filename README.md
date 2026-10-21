@@ -4,9 +4,9 @@
 
 **pytest for AI-generated video.** Turn “is this take usable?” into an executable spec and a CI gate.
 
-> **Status: v0.1.0 — the full mechanical check set.**
+> **Status: v0.1.0 — published on [PyPI](https://pypi.org/project/takecheck/).**
 > Spec compliance plus frozen / duplicate / blank / flicker / motion / subtitle residue / audio,
-> with a self-contained HTML report. PyPI publication is pending credentials.
+> with a self-contained HTML report.
 
 ## Why
 
@@ -116,8 +116,7 @@ Three design choices worth knowing:
 ## Roadmap
 
 - [x] v0.0.1 — spec format, ffprobe compliance check, CLI, `takecheck selftest`
-- [x] v0.1.0 — frozen / duplicate / blank / flicker / motion / subtitle / audio, HTML report
-- [ ] v0.1.1 — publish to PyPI (pending credentials)
+- [x] v0.1.0 — frozen / duplicate / blank / flicker / motion / subtitle / audio, HTML report, on PyPI
 - [ ] v0.2.0 — calibration against accepted/rejected takes, head/tail continuity
 - [ ] v0.3.0 — pipeline lint (custom-node provenance, model hash pinning)
 - [ ] v0.4.0 — pluggable VLM judge
