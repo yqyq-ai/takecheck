@@ -140,6 +140,15 @@ Outputs are `pass` (BOOLEAN), `verdict`, `report` (path) and `detail` (the
 failing checks in one line). See [`comfyui/README.md`](comfyui/README.md) for the
 spec options, and run `python comfyui/TakeCheck.py` to self-test without ComfyUI.
 
+Two things to know about the node:
+
+- **`flicker` is less sensitive there than in the CLI.** ComfyUI hands over
+  `IMAGE` as clamped RGB, so a take whose brightness was pushed past 0/255 in
+  YUV arrives with the swing already squashed. A real exposure flicker is still
+  caught; run the CLI on the saved file if you depend on this check.
+- **A malformed spec raises an error** rather than returning "fail", so you can
+  tell a broken config from a bad take.
+
 ## Test media
 
 `testmedia/synthetic/` holds seven tiny clips that each reproduce exactly one defect — frozen frames,

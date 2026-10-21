@@ -135,6 +135,16 @@ def _run_takecheck(video: Path, spec: Path, report: Path) -> tuple[dict, int]:
         "--quiet",
     ]
     code = int(takecheck_main(argv))
+    # takecheck's own contract: 0 pass, 1 fail, 2 bad spec / unreadable file.
+    # A 2 is a mistake in the spec or the input, not a verdict about the take,
+    # so it must not be reported as "this clip failed" -- a user would go
+    # re-render a perfectly good take because a threshold was misspelled.
+    if code == 2:
+        raise ValueError(
+            f"takecheck could not read the spec at {spec}. See the message above: "
+            "an unknown key, an out-of-range threshold or invalid YAML all land here. "
+            "Fix the spec; the take was not judged."
+        )
     payload = {}
     if report.exists():
         payload = json.loads(report.read_text(encoding="utf-8"))
@@ -315,6 +325,29 @@ def _selftest() -> int:
         check("missing spec rejected", False, "no error raised")
     except FileNotFoundError:
         check("missing spec rejected", True)
+
+    # A malformed spec must raise, not come back as "the take failed". Getting
+    # this wrong sends the user off re-rendering a perfectly good take.
+    bad_spec = work / "bad.yml"
+    bad_spec.write_text(
+        "name: bad\nexpect:\n  audio: optional\n  flicker_max: 5.0\n", encoding="utf-8"
+    )
+    try:
+        node.check(frames, str(bad_spec), 24.0, str(work), False, False)
+        check("bad spec raises instead of failing the take", False, "no error raised")
+    except ValueError as exc:
+        check("bad spec raises instead of failing the take", "spec" in str(exc).lower(), "")
+
+    # ...and an unknown key must behave the same way.
+    typo_spec = work / "typo.yml"
+    typo_spec.write_text(
+        "name: typo\nexpect:\n  audio: optional\n  motion_mim: 0.002\n", encoding="utf-8"
+    )
+    try:
+        node.check(frames, str(typo_spec), 24.0, str(work), False, False)
+        check("unknown spec key raises", False, "no error raised")
+    except ValueError:
+        check("unknown spec key raises", True)
 
     # The HTML report renders and embeds its thumbnails.
     html_dir = work / "html"

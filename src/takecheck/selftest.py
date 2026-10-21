@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -279,7 +280,7 @@ def _write_spec(
     return path
 
 
-def _scratch_directory() -> tempfile.TemporaryDirectory:
+def _scratch_directory() -> tempfile.TemporaryDirectory | None:
     """A temp dir that never lands in the user's working directory by surprise.
 
     ``tempfile`` falls back to the current directory when every candidate temp
@@ -287,14 +288,38 @@ def _scratch_directory() -> tempfile.TemporaryDirectory:
     ``takecheck-selftest-*`` folders in whatever directory the user ran from.
     So the fallback is chosen explicitly here, and it is a dot-directory that
     the project's .gitignore already covers.
+
+    Returns ``None`` when neither the system temp nor the current directory can
+    be written to -- the caller reports that and stops, rather than crashing
+    with a bare PermissionError from deep inside ``mkdtemp``.
     """
+
+    def _fallback() -> tempfile.TemporaryDirectory | None:
+        candidates = [Path.cwd()]
+        # gettempdir() itself raises when nothing is writable, so guard it too.
+        try:
+            candidates.append(Path(tempfile.gettempdir()))
+        except (OSError, FileNotFoundError):
+            pass
+        seen: set[str] = set()
+        for candidate in candidates:
+            key = str(candidate)
+            if key in seen:
+                continue
+            seen.add(key)
+            try:
+                base = candidate / ".takecheck-selftest"
+                base.mkdir(parents=True, exist_ok=True)
+                print(f"takecheck selftest: using {base}")
+                return tempfile.TemporaryDirectory(prefix="run-", dir=base)
+            except (OSError, ValueError):
+                continue
+        return None
+
     try:
         probe_dir = tempfile.TemporaryDirectory(prefix="takecheck-selftest-")
     except (FileNotFoundError, PermissionError, OSError):
-        fallback = Path.cwd() / ".takecheck-selftest"
-        fallback.mkdir(parents=True, exist_ok=True)
-        print(f"takecheck selftest: no writable system temp dir, using {fallback}")
-        return tempfile.TemporaryDirectory(prefix="run-", dir=fallback)
+        return _fallback()
     # Confirm the system temp really is writable before committing to it.
     try:
         marker = Path(probe_dir.name) / ".writable"
@@ -302,10 +327,7 @@ def _scratch_directory() -> tempfile.TemporaryDirectory:
         marker.unlink()
     except OSError:
         probe_dir.cleanup()
-        fallback = Path.cwd() / ".takecheck-selftest"
-        fallback.mkdir(parents=True, exist_ok=True)
-        print(f"takecheck selftest: system temp dir is not writable, using {fallback}")
-        return tempfile.TemporaryDirectory(prefix="run-", dir=fallback)
+        return _fallback()
     return probe_dir
 
 
@@ -316,7 +338,16 @@ def run_selftest() -> int:
         return 3
 
     report = _Report()
-    with _scratch_directory() as tmp:
+    scratch = _scratch_directory()
+    if scratch is None:
+        print(
+            "takecheck selftest: cannot write a scratch directory in the system temp "
+            "directory or the current directory. Run this from a writable directory, "
+            "or set TEMP to one.",
+            file=sys.stderr,
+        )
+        return 3
+    with scratch as tmp:
         work = Path(tmp)
         video = work / "good.mp4"
         _make_clip(video)

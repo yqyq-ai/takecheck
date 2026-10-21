@@ -281,3 +281,32 @@ def test_html_and_json_together(tmp_path: Path) -> None:
     assert payload["verdict"] == "pass"
     # The HTML embeds the same payload, so the two cannot disagree.
     assert payload["spec"] in html_path.read_text(encoding="utf-8")
+# --- selftest scratch directory --------------------------------------------
+
+
+def test_selftest_reports_cleanly_when_no_scratch_dir_is_writable(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Both the system temp and the cwd being unwritable must not traceback."""
+    import takecheck.selftest as selftest_module
+
+    monkeypatch.setattr(selftest_module, "_scratch_directory", lambda: None)
+    code = selftest_module.run_selftest()
+    assert code == 3
+    err = capsys.readouterr().err
+    assert "scratch directory" in err
+    assert "TEMP" in err
+
+
+def test_scratch_directory_never_returns_an_unusable_handle() -> None:
+    """The helper either yields a real temp dir or None -- never a broken one."""
+    import takecheck.selftest as selftest_module
+
+    handle = selftest_module._scratch_directory()
+    if handle is None:
+        return  # a fully locked-down box; the caller reports that
+    with handle as path:
+        assert path, "temporary directory path is empty"
+        marker = Path(path) / "probe"
+        marker.write_text("", encoding="utf-8")
+        assert marker.exists()

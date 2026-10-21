@@ -67,6 +67,18 @@ Restart ComfyUI. The node appears under **video/validation → TakeCheck**.
 Each check reports the numbers behind its verdict in the JSON report, so a
 failure explains itself.
 
+**One blind spot: `flicker` is less sensitive here than on the command line.**
+ComfyUI hands over `IMAGE` as clamped RGB. A take whose brightness was pushed
+past 0/255 in YUV arrives with the swing already squashed — the bundled
+`flicker.mp4` fixture measures a 53% swing through the CLI and 31% through the
+node, landing just under the 35% threshold. A real exposure flicker, which lives
+in RGB, is still caught (verified). If you rely on flicker detection, also run
+`takecheck` on the saved file.
+
+A **malformed spec raises an error** instead of returning a verdict. An unknown
+key, an out-of-range threshold or broken YAML is a mistake in your config, not a
+bad take — the node raises `ValueError` so you can tell the two apart.
+
 ## Outputs
 
 | Output | Type | Meaning |
