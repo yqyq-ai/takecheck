@@ -27,23 +27,24 @@ SPEC = """\
 name: synthetic
 expect:
   audio: required
+  subtitles: forbidden
   frozen_max_ms: 200
   black_max_frames: 0
   flicker_max: 0.35
   motion_min: 0.002
 """
 
-# clip -> the check that must fail on it. ``None`` means "must pass cleanly".
-EXPECTED: dict[str, str | None] = {
+# clip -> checks that must fail on it. ``None`` means "must pass cleanly".
+EXPECTED: dict[str, list[str] | None] = {
     "good.mp4": None,
-    "freeze.mp4": "frozen",
-    "dup.mp4": "duplicate",
-    "black.mp4": "blank",
-    "flicker.mp4": "flicker",
+    "freeze.mp4": ["frozen"],
+    "dup.mp4": ["duplicate"],
+    "black.mp4": ["blank"],
+    "flicker.mp4": ["flicker"],
     # No audio track at all: caught by the spec check.
-    "silent.mp4": "spec",
-    # Burned-in subtitles are D2 work; D1 must neither catch nor false-positive on it.
-    "subtitle.mp4": None,
+    "silent.mp4": ["spec"],
+    # Burned-in subtitles, which is what the subtitle check exists for.
+    "subtitle.mp4": ["subtitle"],
 }
 
 
@@ -92,7 +93,7 @@ def main(argv: list[str] | None = None) -> int:
         spec = Path(tmp) / "takes.yml"
         spec.write_text(SPEC, encoding="utf-8")
 
-        for name, expected_check in EXPECTED.items():
+        for name, expected_checks in EXPECTED.items():
             video = media / name
             if not video.exists():
                 rows.append((name, "-", "-", "MISSING"))
@@ -102,24 +103,30 @@ def main(argv: list[str] | None = None) -> int:
             code, report = _run(video, spec)
             failed = _failed_checks(report)
 
-            if expected_check is None:
+            if expected_checks is None:
                 ok = code == 0 and not failed
                 verdict = "PASS" if ok else "FALSE POSITIVE"
+                expected_text = "(clean)"
             else:
-                ok = code == 1 and expected_check in failed
-                verdict = "PASS" if ok else f"MISSED ({expected_check})"
+                # Every listed check must fire, so a fixture cannot quietly
+                # stop testing the thing it was built for.
+                missing = [check for check in expected_checks if check not in failed]
+                ok = code == 1 and not missing
+                verdict = "PASS" if ok else f"MISSED ({', '.join(missing)})"
+                expected_text = ",".join(expected_checks)
 
             failures += 0 if ok else 1
-            rows.append((name, expected_check or "(clean)", ",".join(failed) or "-", verdict))
+            rows.append((name, expected_text, ",".join(failed) or "-", verdict))
             if args.verbose or not ok:
                 print(f"--- {name} (exit {code}) ---")
                 print(report.rstrip())
 
     width = max(len(row[0]) for row in rows) + 2
+    width_exp = max(len(row[1]) for row in rows) + 2
     fail_width = max(len(row[2]) for row in rows) + 2
-    print(f"{'file':<{width}}{'must fail':<14}{'did fail':<{fail_width}}verdict")
+    print(f"{'file':<{width}}{'must fail':<{width_exp}}{'did fail':<{fail_width}}verdict")
     for name, expected, actual, verdict in rows:
-        print(f"{name:<{width}}{expected:<14}{actual:<{fail_width}}{verdict}")
+        print(f"{name:<{width}}{expected:<{width_exp}}{actual:<{fail_width}}{verdict}")
 
     bad = sum(1 for row in rows if row[3] != "PASS")
     print(f"\n{len(rows) - bad}/{len(rows)} fixtures behaved as expected")

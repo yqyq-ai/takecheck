@@ -12,6 +12,7 @@ import tempfile
 from pathlib import Path
 
 from .checks import FAIL, PASS
+from .checks.audio_check import check_audio
 from .checks.frame_checks import (
     check_blank,
     check_duplicate,
@@ -20,6 +21,7 @@ from .checks.frame_checks import (
     check_motion,
 )
 from .checks.spec_check import check_spec
+from .checks.subtitle_check import check_subtitle
 from .clip import analyse
 from .probe import ProbeError, probe
 from .spec import Expect, SpecError, load_spec
@@ -33,6 +35,28 @@ expect:
   resolution: {resolution}
   audio: {audio}
 """
+
+# ``drawtext`` aborts with a Fontconfig error when it has no fontfile, so the
+# self-test searches the same paths the fixture builder does.
+FONT_CANDIDATES = (
+    "C:/Windows/Fonts/arial.ttf",
+    "C:/Windows/Fonts/segoeui.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    "/System/Library/Fonts/Supplemental/Arial.ttf",
+)
+
+
+def _font() -> str | None:
+    for candidate in FONT_CANDIDATES:
+        if Path(candidate).exists():
+            return candidate
+    return None
+
+
+def _escape(path: str) -> str:
+    """Escape a Windows path for use inside an ffmpeg filter argument."""
+    return path.replace("\\", "/").replace(":", "\\:")
 
 
 class _Report:
@@ -188,6 +212,50 @@ def _make_repeat(target: Path, *, source: Path, length: str = "0.4") -> None:
     )
 
 
+def _make_subtitle_bar(target: Path, *, font: str, seconds: float = 1.0) -> None:
+    """A dark plate with bright text burned into the bottom band."""
+    _ffmpeg(
+        "-f",
+        "lavfi",
+        "-i",
+        f"color=c=0x203040:s=320x240:r=24:d={seconds}",
+        "-vf",
+        "drawbox=x=20:y=182:w=280:h=30:color=black@0.8:t=fill,"
+        f"drawtext=fontfile='{_escape(font)}'"
+        ":text='SUBTITLE':fontsize=22:fontcolor=white:x=(w-text_w)/2:y=186",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-an",
+        str(target),
+    )
+
+
+def _make_mostly_silent(target: Path, *, seconds: float = 2.0) -> None:
+    """A tone that is cut to digital silence after 0.3 s."""
+    _ffmpeg(
+        "-f",
+        "lavfi",
+        "-i",
+        f"testsrc2=size=320x240:rate=24:duration={seconds}",
+        "-f",
+        "lavfi",
+        "-i",
+        f"sine=frequency=440:duration={seconds}",
+        "-af",
+        "volume=enable='gte(t,0.3)':volume=0",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-shortest",
+        str(target),
+    )
+
+
 def _write_spec(
     directory: Path,
     *,
@@ -211,6 +279,36 @@ def _write_spec(
     return path
 
 
+def _scratch_directory() -> tempfile.TemporaryDirectory:
+    """A temp dir that never lands in the user's working directory by surprise.
+
+    ``tempfile`` falls back to the current directory when every candidate temp
+    path is unwritable, which on locked-down Windows boxes leaves
+    ``takecheck-selftest-*`` folders in whatever directory the user ran from.
+    So the fallback is chosen explicitly here, and it is a dot-directory that
+    the project's .gitignore already covers.
+    """
+    try:
+        probe_dir = tempfile.TemporaryDirectory(prefix="takecheck-selftest-")
+    except (FileNotFoundError, PermissionError, OSError):
+        fallback = Path.cwd() / ".takecheck-selftest"
+        fallback.mkdir(parents=True, exist_ok=True)
+        print(f"takecheck selftest: no writable system temp dir, using {fallback}")
+        return tempfile.TemporaryDirectory(prefix="run-", dir=fallback)
+    # Confirm the system temp really is writable before committing to it.
+    try:
+        marker = Path(probe_dir.name) / ".writable"
+        marker.write_text("", encoding="utf-8")
+        marker.unlink()
+    except OSError:
+        probe_dir.cleanup()
+        fallback = Path.cwd() / ".takecheck-selftest"
+        fallback.mkdir(parents=True, exist_ok=True)
+        print(f"takecheck selftest: system temp dir is not writable, using {fallback}")
+        return tempfile.TemporaryDirectory(prefix="run-", dir=fallback)
+    return probe_dir
+
+
 def run_selftest() -> int:
     """Run every branch in isolation and report pass/fail per case."""
     if shutil.which("ffmpeg") is None:
@@ -218,7 +316,7 @@ def run_selftest() -> int:
         return 3
 
     report = _Report()
-    with tempfile.TemporaryDirectory(prefix="takecheck-selftest-") as tmp:
+    with _scratch_directory() as tmp:
         work = Path(tmp)
         video = work / "good.mp4"
         _make_clip(video)
@@ -376,6 +474,66 @@ def run_selftest() -> int:
             report.check(f"single-frame clip is handled ({single_clip.count} frame)", True)
         except Exception as exc:  # noqa: BLE001 - the point is that it must not raise
             report.check("single-frame clip is handled", False, repr(exc))
+
+        # --- media checks (D2) -------------------------------------------
+        # 21. a clean clip has no subtitle band
+        result = check_subtitle(info, Expect(subtitles="forbidden"))
+        report.check("clean clip has no subtitle band", result.status == PASS, result.detail)
+
+        # 22. `subtitles: allowed` skips the work entirely
+        result = check_subtitle(info, Expect(subtitles="allowed"))
+        report.check(
+            "subtitles: allowed skips the check",
+            result.status == PASS and result.measured.get("checked") is False,
+            result.detail,
+        )
+
+        # 23. a burned-in bar in the bottom band is caught. drawtext needs an
+        #     explicit fontfile: without one ffmpeg aborts on Windows.
+        font = _font()
+        if font is None:
+            print("  SKIP  subtitle bar is detected (no font for drawtext)")
+        else:
+            band = work / "subband.mp4"
+            _make_subtitle_bar(band, font=font)
+            result = check_subtitle(probe(band), Expect(subtitles="forbidden"))
+            report.check("subtitle bar is detected", result.status == FAIL, result.detail)
+
+        # 24. audio: a normal tone measures clean
+        result = check_audio(info, Expect(audio="required"))
+        report.check("audio on a normal clip passes", result.status == PASS, result.detail)
+
+        # 25. audio measurements are actually present
+        measured = result.measured
+        report.check(
+            "audio reports peak and loudness",
+            measured.get("peak_db") is not None and measured.get("loudness_lufs") is not None,
+            f"peak={measured.get('peak_db')} lufs={measured.get('loudness_lufs')}",
+        )
+
+        # 26. a missing track is left to the spec check, not double-reported
+        result = check_audio(probe(silent), Expect(audio="required"))
+        report.check(
+            "missing audio is not double-reported",
+            result.status == PASS and result.measured.get("checked") is False,
+            result.detail,
+        )
+
+        # 27. audio: forbidden really means forbidden
+        result = check_audio(info, Expect(audio="forbidden"))
+        report.check(
+            "audio forbidden fails when a track exists", result.status == FAIL, result.detail
+        )
+
+        # 28. a mostly silent track fails
+        quiet = work / "mostly-silent.mp4"
+        _make_mostly_silent(quiet)
+        result = check_audio(probe(quiet), Expect(audio="required"))
+        report.check(
+            "mostly silent audio fails",
+            result.status == FAIL and result.measured["silent_fraction"] > 0.5,
+            result.detail,
+        )
 
     print(f"\n{report.total - report.failures}/{report.total} cases passed")
     return 0 if report.failures == 0 else 1

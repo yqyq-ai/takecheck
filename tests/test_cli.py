@@ -195,3 +195,89 @@ def test_json_report_records_the_failed_check(tmp_path: Path) -> None:
     blank = next(check for check in payload["checks"] if check["name"] == "blank")
     assert blank["status"] == "fail"
     assert blank["measured"]["blank_frames"] > 0
+# --- HTML report ------------------------------------------------------------
+
+
+@needs_ffmpeg
+def test_html_report_is_written_and_self_contained(tmp_path: Path) -> None:
+    video = _build(tmp_path / "good.mp4")
+    report = tmp_path / "report.html"
+    code = main(
+        [
+            "check",
+            str(video),
+            "--spec",
+            str(_write_spec(tmp_path)),
+            "--html",
+            str(report),
+            "--quiet",
+        ]
+    )
+    assert code == 0
+    assert report.exists()
+    document = report.read_text(encoding="utf-8")
+    assert document.startswith("<!DOCTYPE html>")
+    # Thumbnails are embedded, so the file works after being moved or emailed.
+    assert "data:image/jpeg;base64," in document
+    assert "http://" not in document and "https://" not in document
+
+
+@needs_ffmpeg
+def test_html_report_marks_failing_frames(tmp_path: Path) -> None:
+    """A failing check must put a red outline on the contact sheet."""
+    video = tmp_path / "black.mp4"
+    assert FFMPEG is not None
+    subprocess.run(
+        [
+            FFMPEG,
+            "-y",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=black:s=320x240:r=24:d=1",
+            "-pix_fmt",
+            "yuv420p",
+            str(video),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    report = tmp_path / "report.html"
+    code = main(
+        ["check", str(video), "--spec", str(_write_spec(tmp_path)), "--html", str(report),
+         "--quiet"]
+    )
+    assert code == 1
+    document = report.read_text(encoding="utf-8")
+    assert "tile flagged" in document
+    assert "FAIL" in document
+
+
+@needs_ffmpeg
+def test_html_and_json_together(tmp_path: Path) -> None:
+    """Both report formats can be requested in one run."""
+    video = _build(tmp_path / "good.mp4")
+    html_path = tmp_path / "report.html"
+    json_path = tmp_path / "report.json"
+    code = main(
+        [
+            "check",
+            str(video),
+            "--spec",
+            str(_write_spec(tmp_path)),
+            "--html",
+            str(html_path),
+            "--json",
+            str(json_path),
+            "--quiet",
+        ]
+    )
+    assert code == 0
+    assert html_path.exists() and json_path.exists()
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    assert payload["verdict"] == "pass"
+    # The HTML embeds the same payload, so the two cannot disagree.
+    assert payload["spec"] in html_path.read_text(encoding="utf-8")

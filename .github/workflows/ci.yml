@@ -39,3 +39,16 @@ jobs:
 
       - name: Fixture verdicts
         run: python scripts/check_synthetic.py
+
+      - name: HTML report renders
+        run: |
+          cp examples/takes.yml "${RUNNER_TEMP}/takes.yml"
+          takecheck check testmedia/synthetic/subtitle.mp4 \
+            --spec "${RUNNER_TEMP}/takes.yml" \
+            --html "${RUNNER_TEMP}/report.html" || true
+          test -s "${RUNNER_TEMP}/report.html"
+          grep -q "data:image/jpeg;base64," "${RUNNER_TEMP}/report.html"
+          grep -q "tile flagged" "${RUNNER_TEMP}/report.html"
+
+      - name: Build wheel
+        run: pip wheel --no-deps -w dist .

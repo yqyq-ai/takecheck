@@ -7,7 +7,11 @@ expect:
   frames: 121
   resolution: 1280x720
   audio: required
-  subtitles: forbidden   # no burned-in subtitle residue in the bottom band
+  # `forbidden` turns the subtitle-residue check on. It looks for a band of text
+  # in the bottom 72%-92% of the frame; set it to `allowed` to skip that work.
+  # Note: a scene that legitimately contains text in the lower third will trip
+  # this check, so relax it for titles and lower-thirds.
+  subtitles: forbidden
   frozen_max_ms: 200
   black_max_frames: 0
   flicker_max: 0.35

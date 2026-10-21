@@ -101,6 +101,67 @@ def _hamming(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return _popcount(np.bitwise_xor(a, b))
 
 
+def sample_frames(
+    path: Path,
+    width: int,
+    height: int,
+    *,
+    max_frames: int | None = None,
+) -> np.ndarray:
+    """Decode ``path`` into ``(N, height, width)`` float32 gray frames.
+
+    This is the raw accessor the specialised checks use when a 32x32 thumbnail
+    is too coarse -- subtitle detection needs the detail inside the bottom
+    band, for instance. Kept separate from :func:`decode` so that resizing one
+    caller cannot silently move the thresholds calibrated for another.
+    """
+    ffmpeg = _ffmpeg()
+    frame_bytes = width * height
+    cmd = [
+        ffmpeg,
+        "-v",
+        "error",
+        "-i",
+        str(path),
+        "-an",
+        "-sn",
+        "-dn",
+        "-vf",
+        f"scale={width}:{height}:flags=area,format=gray",
+        "-f",
+        "rawvideo",
+        "-pix_fmt",
+        "gray",
+        "-",
+    ]
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    assert proc.stdout is not None
+    assert proc.stderr is not None
+
+    frames: list[np.ndarray] = []
+    try:
+        while True:
+            if max_frames is not None and len(frames) >= max_frames:
+                break
+            buf = proc.stdout.read(frame_bytes)
+            if len(buf) < frame_bytes:
+                break
+            frames.append(np.frombuffer(buf, dtype=np.uint8).reshape(height, width))
+    finally:
+        proc.stdout.close()
+        stderr = proc.stderr.read()
+        proc.stderr.close()
+        proc.wait()
+
+    if proc.returncode != 0 and not frames:
+        message = stderr.decode("utf-8", "replace").strip()
+        raise DecodeError(message or f"ffmpeg failed to decode {path}")
+    if not frames:
+        raise DecodeError(f"no frames decoded from {path}")
+
+    return np.stack(frames).astype(np.float32)
+
+
 def decode(path: Path, fps: float, max_frames: int | None = None) -> FrameMetrics:
     """Decode ``path`` and return per-frame metrics.
 
