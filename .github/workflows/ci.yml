@@ -29,10 +29,13 @@ jobs:
         run: python scripts/make_testmedia.py --dest "${RUNNER_TEMP}/testmedia"
 
       - name: Lint
-        run: ruff check src tests
+        run: ruff check .
 
       - name: Unit tests
         run: pytest -q
 
       - name: Self-test
         run: takecheck selftest
+
+      - name: Fixture verdicts
+        run: python scripts/check_synthetic.py

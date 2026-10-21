@@ -72,7 +72,16 @@ def _escape(path: str) -> str:
 
 def _probe(path: Path) -> tuple[float, int, bool]:
     proc = subprocess.run(
-        [FFPROBE, "-v", "error", "-print_format", "json", "-show_format", "-show_streams", str(path)],
+        [
+            FFPROBE,
+            "-v",
+            "error",
+            "-print_format",
+            "json",
+            "-show_format",
+            "-show_streams",
+            str(path),
+        ],
         capture_output=True,
         text=True,
         encoding="utf-8",

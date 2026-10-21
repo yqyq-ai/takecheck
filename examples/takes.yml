@@ -11,7 +11,10 @@ expect:
   frozen_max_ms: 200
   black_max_frames: 0
   flicker_max: 0.35
-  motion_min: 0.15
+  # Mean frame-to-frame difference on 32x32 gray thumbnails, 0..1.
+  # Reference points measured on the bundled fixtures: a normally moving clip
+  # scores ~0.009, a still render ~0.000. Raise this for slow, quiet shots.
+  motion_min: 0.002
 judges:
   - mechanical
   # - vlm: { backend: llama.cpp, model: qwen3.8-27b }

@@ -10,12 +10,30 @@ from pathlib import Path
 
 from . import __version__
 from .checks import FAIL, SKIP, CheckResult
+from .checks.frame_checks import (
+    check_blank,
+    check_duplicate,
+    check_flicker,
+    check_frozen,
+    check_motion,
+)
 from .checks.spec_check import check_spec
+from .clip import analyse
+from .frames import DecodeError
 from .probe import ProbeError, probe
 from .spec import SpecError, load_spec
 
 # Checks that exist in the design but are not implemented yet.
-PENDING_CHECKS = ("frozen", "duplicate", "blank", "flicker", "motion", "subtitle", "audio")
+PENDING_CHECKS = ("subtitle", "audio")
+
+# Name -> function, in the order they are reported.
+FRAME_CHECKS = (
+    ("frozen", check_frozen),
+    ("duplicate", check_duplicate),
+    ("blank", check_blank),
+    ("flicker", check_flicker),
+    ("motion", check_motion),
+)
 
 _TAGS = {"pass": "PASS", "fail": "FAIL", "warn": "WARN", "skip": "SKIP"}
 
@@ -55,6 +73,16 @@ def cmd_check(args: argparse.Namespace) -> int:
         return 2
 
     results = [check_spec(info, spec.expect)]
+
+    try:
+        clip = analyse(info)
+    except DecodeError as exc:
+        print(f"takecheck: error: {exc}", file=sys.stderr)
+        return 2
+
+    for _name, func in FRAME_CHECKS:
+        results.append(func(clip, spec.expect))
+
     pending = "not implemented yet (planned for v0.1)"
     results += [CheckResult(name, SKIP, pending) for name in PENDING_CHECKS]
 
@@ -65,10 +93,11 @@ def cmd_check(args: argparse.Namespace) -> int:
         print(f"{verdict}  {spec.name}  ({video.name})")
         for result in results:
             print(_format(result))
+        print(f"  frames decoded: {clip.count} @ {clip.fps:g}fps")
         if failed:
             print(f"\n{len(failed)} check(s) failed")
         if any(r.status == SKIP for r in results):
-            print("note: some checks are placeholders in v0.0.1")
+            print("note: subtitle/audio checks are placeholders until v0.1")
 
     if args.json_out:
         target = Path(args.json_out)

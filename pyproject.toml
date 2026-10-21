@@ -23,7 +23,7 @@ classifiers = [
   "Topic :: Multimedia :: Video",
   "Topic :: Software Development :: Quality Assurance",
 ]
-dependencies = ["PyYAML>=6.0"]
+dependencies = ["PyYAML>=6.0", "numpy>=1.24"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.5"]

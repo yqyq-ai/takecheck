@@ -12,9 +12,17 @@ import tempfile
 from pathlib import Path
 
 from .checks import FAIL, PASS
+from .checks.frame_checks import (
+    check_blank,
+    check_duplicate,
+    check_flicker,
+    check_frozen,
+    check_motion,
+)
 from .checks.spec_check import check_spec
+from .clip import analyse
 from .probe import ProbeError, probe
-from .spec import SpecError, load_spec
+from .spec import Expect, SpecError, load_spec
 
 DEFAULT_SPEC = """\
 name: selftest
@@ -71,6 +79,113 @@ def _make_clip(
     proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if proc.returncode != 0:
         raise RuntimeError(proc.stderr.strip() or "ffmpeg failed to build a test clip")
+
+
+def _ffmpeg(*args: str) -> None:
+    """Run ffmpeg with ``args``, raising on failure."""
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg is None:
+        raise RuntimeError("ffmpeg not found on PATH")
+    proc = subprocess.run(
+        [ffmpeg, "-y", "-hide_banner", "-loglevel", "error", *args],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(proc.stderr.strip() or "ffmpeg failed")
+
+
+def _make_frozen(target: Path, *, source: Path, hold: str = "0.6") -> None:
+    """Clone the first frame for ``hold`` seconds to fake a freeze."""
+    _ffmpeg(
+        "-i",
+        str(source),
+        "-vf",
+        f"tpad=start_mode=clone:start_duration={hold}",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-an",
+        str(target),
+    )
+
+
+def _make_static(target: Path, *, seconds: float = 1.0) -> None:
+    """A clip whose every frame is identical: nothing moves at all.
+
+    ``loop`` repeats the first frame, so the result is exactly as long as the
+    requested ``seconds`` rather than however many loops were asked for.
+    """
+    _ffmpeg(
+        "-f",
+        "lavfi",
+        "-i",
+        f"testsrc2=size=320x240:rate=24:duration={seconds}",
+        "-vf",
+        "select=eq(n\\,0),loop=loop=24:size=1:start=0",
+        "-t",
+        f"{seconds}",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-an",
+        str(target),
+    )
+
+
+def _make_black(target: Path, *, seconds: float = 0.25) -> None:
+    """A short clip of pure black frames."""
+    _ffmpeg(
+        "-f",
+        "lavfi",
+        "-i",
+        f"color=c=black:s=320x240:r=24:d={seconds}",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-an",
+        str(target),
+    )
+
+
+def _make_flicker(target: Path, *, source: Path) -> None:
+    """Oscillate brightness hard enough to be an obvious strobe."""
+    _ffmpeg(
+        "-i",
+        str(source),
+        "-vf",
+        "eq=brightness=0.3*sin(2*PI*t*8):eval=frame",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-an",
+        str(target),
+    )
+
+
+def _make_repeat(target: Path, *, source: Path, length: str = "0.4") -> None:
+    """Play the first ``length`` seconds twice: a visible loop."""
+    _ffmpeg(
+        "-i",
+        str(source),
+        "-filter_complex",
+        f"[0:v]split[a][b];[a]trim=0:{length},setpts=PTS-STARTPTS[v1];"
+        f"[b]trim=0:{length},setpts=PTS-STARTPTS[v2];[v1][v2]concat=n=2:v=1:a=0[v]",
+        "-map",
+        "[v]",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-an",
+        str(target),
+    )
 
 
 def _write_spec(
@@ -151,6 +266,116 @@ def run_selftest() -> int:
             report.check("missing file rejected", False, "no error raised")
         except ProbeError:
             report.check("missing file rejected", True)
+
+        # --- frame-level checks (D1) -------------------------------------
+        # Every clip below is built here, from scratch, inside the temp dir.
+        default = Expect()
+        good = analyse(probe(video))
+
+        # 8. a normal clip passes all five frame checks
+        for check in (check_frozen, check_duplicate, check_blank, check_flicker, check_motion):
+            result = check(good, default)
+            report.check(
+                f"{result.name} passes on a normal clip", result.status == PASS, result.detail
+            )
+
+        # 9. a cloned first frame is reported as frozen, with a time range
+        frozen = work / "frozen.mp4"
+        _make_frozen(frozen, source=video, hold="0.6")
+        result = check_frozen(analyse(probe(frozen)), default)
+        report.check(
+            "frozen stretch fails",
+            result.status == FAIL and "ranges" in result.measured,
+            result.detail,
+        )
+
+        # 10. a shorter hold than the limit is not reported, i.e. the
+        #     threshold is actually honoured rather than always firing.
+        brief = work / "brief.mp4"
+        _make_frozen(brief, source=video, hold="0.08")
+        result = check_frozen(analyse(probe(brief)), default)
+        report.check("short hold is not frozen", result.status == PASS, result.detail)
+
+        # 11. a completely static clip is caught by motion
+        still = work / "static.mp4"
+        _make_static(still)
+        still_clip = analyse(probe(still))
+        result = check_motion(still_clip, default)
+        report.check("static clip fails motion", result.status == FAIL, result.detail)
+
+        # 12. ...and the same clip is also reported as frozen
+        result = check_frozen(still_clip, default)
+        report.check("static clip fails frozen", result.status == FAIL, result.detail)
+
+        # 13. a replayed intro is caught by duplicate
+        loop = work / "loop.mp4"
+        _make_repeat(loop, source=video)
+        result = check_duplicate(analyse(probe(loop)), default)
+        report.check("replayed intro fails duplicate", result.status == FAIL, result.detail)
+
+        # 14. black frames are counted, and reported with a time range
+        black = work / "black.mp4"
+        _make_black(black)
+        black_clip = analyse(probe(black))
+        result = check_blank(black_clip, default)
+        report.check(
+            "black frames fail blank",
+            result.status == FAIL and result.measured["blank_frames"] > 0,
+            result.detail,
+        )
+
+        # 15. a black clip is NOT reported as flicker: one defect, one check
+        result = check_flicker(black_clip, default)
+        report.check("black clip is not flicker", result.status == PASS, result.detail)
+
+        # 16. ...nor as duplicate, for the same reason
+        result = check_duplicate(black_clip, default)
+        report.check("black clip is not duplicate", result.status == PASS, result.detail)
+
+        # 17. a strobing clip fails flicker
+        strobe = work / "flicker.mp4"
+        _make_flicker(strobe, source=video)
+        result = check_flicker(analyse(probe(strobe)), default)
+        report.check("strobe fails flicker", result.status == FAIL, result.detail)
+
+        # 18. spec thresholds are honoured: a stricter flicker_max rejects a
+        #     normal clip that the default accepts, so the value is really read.
+        strict = Expect(flicker_max=0.0001)
+        normal = check_flicker(good, default)
+        harsh = check_flicker(good, strict)
+        report.check(
+            "flicker_max is read from the spec",
+            normal.status == PASS and harsh.status == FAIL,
+            f"default={normal.status} strict={harsh.status}",
+        )
+
+        # 19. every frame check reports numbers, never just a verdict
+        missing = [
+            check.__name__
+            for check, result in (
+                (check_frozen, check_frozen(good, default)),
+                (check_duplicate, check_duplicate(good, default)),
+                (check_blank, check_blank(good, default)),
+                (check_flicker, check_flicker(good, default)),
+                (check_motion, check_motion(good, default)),
+            )
+            if not result.measured
+        ]
+        report.check("every frame check reports measured values", not missing, ", ".join(missing))
+
+        # 20. a single-frame clip does not crash the window-based checks
+        single = work / "single.mp4"
+        _make_black(single, seconds=1 / 24)
+        single_clip = analyse(probe(single))
+        try:
+            check_frozen(single_clip, default)
+            check_blank(single_clip, default)
+            check_flicker(single_clip, default)
+            check_duplicate(single_clip, default)
+            check_motion(single_clip, default)
+            report.check(f"single-frame clip is handled ({single_clip.count} frame)", True)
+        except Exception as exc:  # noqa: BLE001 - the point is that it must not raise
+            report.check("single-frame clip is handled", False, repr(exc))
 
     print(f"\n{report.total - report.failures}/{report.total} cases passed")
     return 0 if report.failures == 0 else 1

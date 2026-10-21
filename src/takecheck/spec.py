@@ -57,7 +57,10 @@ class Expect:
     frozen_max_ms: int = 200
     black_max_frames: int = 0
     flicker_max: float = 0.35
-    motion_min: float = 0.15
+    # Frame-to-frame mean difference, 0..1, measured on 32x32 gray thumbnails.
+    # Calibrated on testmedia/synthetic: a normally-moving clip lands near
+    # 0.009, a still render near 0.0000, so 0.002 separates them with margin.
+    motion_min: float = 0.002
 
     def width_height(self) -> tuple[int, int] | None:
         """Return ``(width, height)`` when a resolution is declared."""
