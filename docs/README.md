@@ -9,8 +9,9 @@ committed to the repository.
 | `frozen-detection.gif` | top: a moving take passes; bottom: a take frozen for 0.83 s fails |
 | `blank-detection.gif` | top: a normal take passes; bottom: a take with black frames fails |
 | `screenshot-subtitle.png` | the HTML report for the subtitle failure — every check's measured values plus a red-rimmed contact sheet |
-| `demo-subtitle.html` | the report above, as a live file you can open |
-| `demo-good.html` | the same report for a passing take |
+
+The two `demo-*.html` reports are **not** committed: they are one command away
+(see below) and would only churn the diff.
 
 Rebuild the GIFs (needs ffmpeg; the fixtures ship with the repo):
 

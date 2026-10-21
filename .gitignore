@@ -33,3 +33,6 @@ Thumbs.db
 .takecheck-selftest/
 takecheck-selftest-*/
 .pytest-scratch/
+
+# Generated demo reports (rebuild with the commands in docs/README.md).
+docs/demo-*.html
